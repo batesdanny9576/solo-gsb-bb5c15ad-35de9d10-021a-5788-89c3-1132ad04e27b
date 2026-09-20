@@ -90,6 +90,26 @@
     </div>
   </div>
 
+  <!-- 合并人物确认弹窗 -->
+  <div id="mergeOverlay" class="overlay hidden">
+    <div class="modal">
+      <div class="modal-title">合并人物</div>
+      <div class="merge-row">
+        <label>目标人物（合并后保留）</label>
+        <div id="mergeTargetName" class="merge-name"></div>
+      </div>
+      <div class="merge-row">
+        <label for="mergeSource">并入人物（合并后被删除）</label>
+        <select id="mergeSource"></select>
+      </div>
+      <div id="mergeSummary" class="merge-summary"></div>
+      <div class="modal-actions">
+        <button id="mergeOk" class="btn btn-primary">确认合并</button>
+        <button id="mergeCancel" class="btn">取消</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="anonymize.js"></script>

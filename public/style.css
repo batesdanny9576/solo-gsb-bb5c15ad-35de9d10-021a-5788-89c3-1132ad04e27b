@@ -113,7 +113,7 @@ body {
 }
 
 .sidebar form { display: flex; flex-direction: column; gap: 8px; }
-.sidebar input, .popup input, .popup select {
+.sidebar input, .popup input, .popup select, .modal select {
   border: 1px solid #d0d7de;
   border-radius: 6px;
   padding: 7px 10px;
@@ -131,8 +131,21 @@ body {
 .person-head { display: flex; align-items: center; gap: 8px; }
 .person-head .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,.2); flex: none; }
 .person-head .codename { font-weight: 600; }
-.person-head .del {
+.person-head .merge {
   margin-left: auto;
+  border: 1px solid #d0d7de;
+  background: #fff;
+  border-radius: 5px;
+  color: #4a5568;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 1px 7px;
+  flex: none;
+}
+.person-head .merge:hover:not(:disabled) { border-color: #1f6feb; color: #1f6feb; }
+.person-head .merge:disabled { opacity: 0.4; cursor: not-allowed; }
+.person-head .del {
+  margin-left: 4px;
   border: none;
   background: none;
   color: #b0b8c0;
@@ -256,6 +269,46 @@ body {
 .popup-title { font-size: 13px; font-weight: 600; }
 #popupNewFields { display: flex; flex-direction: column; gap: 8px; }
 .popup-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* 合并人物弹窗 */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, .45);
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .25);
+  padding: 16px;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.modal-title { font-size: 15px; font-weight: 600; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.merge-row { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.merge-row label { font-size: 12px; color: #6a7480; }
+.merge-name { font-weight: 600; }
+.merge-summary {
+  border: 1px dashed #e1e6ec;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 10px;
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.merge-summary b { color: #1a5fb4; }
+.merge-sub { font-size: 12px; color: #6a7480; }
+.merge-tags { margin-top: 0; }
 
 .toast {
   position: fixed;
