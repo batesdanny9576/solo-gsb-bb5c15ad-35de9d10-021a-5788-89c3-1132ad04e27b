@@ -7,7 +7,8 @@
  * 3. 最长称呼优先：称呼命中之间发生重叠时，更长的称呼优先，长度相同则先出现者优先；
  * 4. 原稿永不改动：匿名结果只体现在预览中，同时维护双向字符区间映射。
  *
- * 标记例外、恢复匿名、添加/撤销人物、框选均进入同一个撤销栈。
+ * 标记例外、恢复匿名、添加/删除/合并人物、框选均进入同一个撤销栈；
+ * 合并人物为原子操作：一次入栈，撤销时按原 ID、列表位置、称呼与全部关联区间精确恢复。
  */
 (function () {
   'use strict';
@@ -18,7 +19,7 @@
     persons: [],       // { id, codename, aliases:[], color }
     selections: [],    // { id, start, end, personId } 显式框选
     exceptions: [],    // { id, start, end, personId } 保留原文例外
-    history: [],       // 撤销栈：person / selection / exception / restore / removePerson
+    history: [],       // 撤销栈：person / selection / exception / restore / removePerson / mergePerson
     currentPreview: '',
     currentMap: []     // { id, kind, oStart, oEnd, pStart, pEnd, personId, explicit, exId }
   };
@@ -38,6 +39,8 @@
   var mappingBody = document.querySelector('#mappingTable tbody');
   var selPopup = $('selPopup'), popupPerson = $('popupPerson'), popupNewFields = $('popupNewFields');
   var popupCodename = $('popupCodename'), popupAlias = $('popupAlias');
+  var mergeDialog = $('mergeDialog'), mergeTargetEl = $('mergeTarget'), mergeSource = $('mergeSource');
+  var mergeCodenames = $('mergeCodenames'), mergeAliases = $('mergeAliases'), mergeCounts = $('mergeCounts');
   var toastEl = $('toast');
 
   // ---------- 工具 ----------
@@ -137,12 +140,17 @@
       var name = document.createElement('span');
       name.className = 'codename';
       name.textContent = p.codename;
+      var merge = document.createElement('button');
+      merge.className = 'merge';
+      merge.title = '把另一人物合并进「' + p.codename + '」（可撤销）';
+      merge.textContent = '合并';
+      merge.addEventListener('click', function () { openMergeDialog(p.id); });
       var del = document.createElement('button');
       del.className = 'del';
       del.title = '删除该人物及其规则（可撤销）';
       del.textContent = '×';
       del.addEventListener('click', function () { removePerson(p.id); });
-      head.appendChild(dot); head.appendChild(name); head.appendChild(del);
+      head.appendChild(dot); head.appendChild(name); head.appendChild(merge); head.appendChild(del);
       li.appendChild(head);
 
       var tags = document.createElement('div');
@@ -381,6 +389,105 @@
     toast('已删除人物「' + person.codename + '」，可撤销');
   }
 
+  // ---------- 合并人物 ----------
+  // 目标人物保留；源人物的称呼（去重后）、框选与例外统一改绑到目标人物，源人物删除。
+  // 重叠称呼仍由引擎按「最长称呼优先」处理，无需额外规则。
+  var mergeTargetId = null; // 弹窗当前的目标人物 id
+
+  function dedupAliases(target, source) {
+    var merged = target.aliases.slice();
+    source.aliases.forEach(function (a) {
+      if (merged.indexOf(a) === -1) merged.push(a);
+    });
+    return merged;
+  }
+
+  function openMergeDialog(targetId) {
+    var target = personById(targetId);
+    if (!target) return;
+    if (state.persons.length < 2) { toast('至少需要两位人物才能合并'); return; }
+    mergeTargetId = targetId;
+    mergeTargetEl.textContent = target.codename;
+    // 源人物下拉：除目标外的所有人物
+    mergeSource.innerHTML = '';
+    state.persons.forEach(function (p) {
+      if (p.id === targetId) return;
+      var o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = p.codename;
+      mergeSource.appendChild(o);
+    });
+    updateMergePreview();
+    mergeDialog.classList.remove('hidden');
+  }
+
+  function closeMergeDialog() {
+    mergeDialog.classList.add('hidden');
+    mergeTargetId = null;
+  }
+
+  // 弹窗预览：双方代号、去重后的称呼、将迁移的框选与例外数量（随源人物选择实时刷新）
+  function updateMergePreview() {
+    var target = personById(mergeTargetId);
+    var source = personById(Number(mergeSource.value));
+    if (!target || !source) return;
+    mergeCodenames.textContent = '「' + target.codename + '」（目标，保留）＋「' +
+      source.codename + '」（源，合并后删除）';
+
+    var merged = dedupAliases(target, source);
+    mergeAliases.innerHTML = '';
+    var label = document.createElement('span');
+    label.className = 'merge-label';
+    label.textContent = '合并后称呼（已去重）：';
+    mergeAliases.appendChild(label);
+    if (merged.length) {
+      merged.forEach(function (a) {
+        var t = document.createElement('span');
+        t.className = 'alias-tag';
+        t.textContent = a;
+        mergeAliases.appendChild(t);
+      });
+    } else {
+      var em = document.createElement('span');
+      em.className = 'alias-empty';
+      em.textContent = '（双方均未登记称呼，仅框选生效）';
+      mergeAliases.appendChild(em);
+    }
+
+    var selCount = state.selections.filter(function (s) { return s.personId === source.id; }).length;
+    var exCount = state.exceptions.filter(function (x) { return x.personId === source.id; }).length;
+    mergeCounts.textContent = '将迁移到目标人物：框选 ' + selCount + ' 处 ｜ 保留原文例外 ' + exCount + ' 条';
+  }
+
+  function mergePerson(targetId, sourceId) {
+    var target = personById(targetId);
+    var source = personById(sourceId);
+    if (!target || !source || target === source) return;
+    var sourceIndex = state.persons.indexOf(source);
+    var targetAliasesBefore = target.aliases.slice();
+    // 保留对象引用：撤销时按引用把 personId 改回源人物
+    var movedSels = state.selections.filter(function (s) { return s.personId === sourceId; });
+    var movedExs = state.exceptions.filter(function (x) { return x.personId === sourceId; });
+
+    target.aliases = dedupAliases(target, source);
+    movedSels.forEach(function (s) { s.personId = targetId; });
+    movedExs.forEach(function (x) { x.personId = targetId; });
+    state.persons = state.persons.filter(function (p) { return p.id !== sourceId; });
+
+    // 整次合并作为一条原子记录进入撤销栈
+    state.history.push({
+      type: 'mergePerson',
+      targetId: targetId,
+      targetAliasesBefore: targetAliasesBefore,
+      source: source,
+      sourceIndex: sourceIndex,
+      selections: movedSels,
+      exceptions: movedExs
+    });
+    render();
+    toast('已将「' + source.codename + '」合并进「' + target.codename + '」，可撤销');
+  }
+
   // ---------- 保留原文例外 ----------
   function markException(mapItem) {
     if (mapItem.kind !== 'replace' || mapItem.explicit) return;
@@ -433,6 +540,15 @@
         state.selections = state.selections.concat(action.selections);
         state.exceptions = state.exceptions.concat(action.exceptions);
         toast('已恢复人物「' + action.person.codename + '」及其规则');
+        break;
+      case 'mergePerson':
+        // 精确恢复：目标称呼还原、关联区间改回源人物、源人物按原 ID 与原列表位置放回
+        var mTarget = personById(action.targetId);
+        if (mTarget) mTarget.aliases = action.targetAliasesBefore.slice();
+        action.selections.forEach(function (s) { s.personId = action.source.id; });
+        action.exceptions.forEach(function (x) { x.personId = action.source.id; });
+        state.persons.splice(Math.min(action.sourceIndex, state.persons.length), 0, action.source);
+        toast('已撤销合并，恢复人物「' + action.source.codename + '」');
         break;
     }
     render();
@@ -528,7 +644,24 @@
   });
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') closePopup();
+    if (e.key === 'Escape') { closePopup(); closeMergeDialog(); }
+  });
+
+  // ---------- 合并人物弹窗 ----------
+  mergeSource.addEventListener('change', updateMergePreview);
+
+  $('mergeConfirm').addEventListener('click', function () {
+    var sourceId = Number(mergeSource.value);
+    var targetId = mergeTargetId;
+    if (!personById(targetId) || !personById(sourceId)) { closeMergeDialog(); return; }
+    closeMergeDialog();
+    mergePerson(targetId, sourceId);
+  });
+
+  $('mergeCancel').addEventListener('click', closeMergeDialog);
+
+  mergeDialog.addEventListener('mousedown', function (e) {
+    if (e.target === mergeDialog) closeMergeDialog(); // 点击遮罩关闭
   });
 
   // ---------- 顶部操作 ----------
@@ -544,6 +677,7 @@
     state.selections = [];
     state.exceptions = [];
     state.history = [];
+    closeMergeDialog();
     inputSection.classList.add('hidden');
     editorSection.classList.remove('hidden');
     $('btnResetText').classList.remove('hidden');
@@ -557,6 +691,7 @@
     editorSection.classList.add('hidden');
     inputSection.classList.remove('hidden');
     $('btnResetText').classList.add('hidden');
+    closeMergeDialog();
     state.text = '';
     state.persons = [];
     state.selections = [];

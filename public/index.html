@@ -90,6 +90,30 @@
     </div>
   </div>
 
+  <!-- 合并人物确认弹窗 -->
+  <div id="mergeDialog" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-title">合并人物</div>
+      <div class="merge-row">
+        <span class="merge-label">目标人物（保留）</span>
+        <span id="mergeTarget" class="merge-target"></span>
+      </div>
+      <div class="merge-row">
+        <span class="merge-label">源人物（并入后删除）</span>
+        <select id="mergeSource"></select>
+      </div>
+      <div class="merge-preview">
+        <div id="mergeCodenames" class="merge-codenames"></div>
+        <div id="mergeAliases" class="merge-aliases"></div>
+        <div id="mergeCounts" class="merge-counts"></div>
+      </div>
+      <div class="modal-actions">
+        <button id="mergeConfirm" class="btn btn-primary">确认合并（可撤销）</button>
+        <button id="mergeCancel" class="btn">取消</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="anonymize.js"></script>
